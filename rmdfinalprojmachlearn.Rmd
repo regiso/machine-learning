@@ -1,0 +1,109 @@
+---
+title: "Predicting Barbell Lifting Performance"
+author: "Regis O'Connor"
+date: "December 3, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Executive Summary
+
+After evaluating 3 different prediction models on the Weight Lifting Exercise Database, a random forest model emerged with the highest accuracy and
+kappa values The most important variables for prediction of how the barbell was lifted were the forearm pitch and belt roll.
+
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively
+inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves
+regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is
+quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data
+from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in
+5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight
+Lifting Exercise Dataset). 
+
+
+## Data Process, Exploratory Data Analysis
+All code was run using R3.3.2 on December 2, 2016. Pacages used included caret, randomForest and dplyr. After loading the data and creating a 
+validation data subset from the training data a summary revealed a data.frame with more than 19,000 samples and 160 variables. In
+addtion, 100 of the variables had several NA's so these were all eliminated from the analysis.
+
+```{r load data and exploratory analysis}
+training <- read.csv("pml-training.csv")
+testing  <- read.csv("pml-testing.csv")
+
+library(caret)
+library(randomForest)
+set.seed(777)
+validation <- createDataPartition(y=training$classe, p=0.2, list=FALSE)
+validtrain <- training[validation,]
+train      <- training[-validation,]
+
+summary(train)
+library(dplyr)
+smalltrain <- train %>% select(-starts_with("kurtosis")) %>%
+  select(-starts_with("skewness")) %>%
+  select(-starts_with("max"))%>%
+  select(-starts_with("min"))%>%
+  select(-starts_with("amplitude"))%>%
+  select(-starts_with("var"))%>%
+  select(-starts_with("avg"))%>%
+  select(-starts_with("stddev"))
+smalltest  <- testing %>% select(-starts_with("kurtosis")) %>%
+  select(-starts_with("skewness")) %>%
+  select(-starts_with("max"))%>%
+  select(-starts_with("min"))%>%
+  select(-starts_with("amplitude"))%>%
+  select(-starts_with("var"))%>%
+  select(-starts_with("avg"))%>%
+  select(-starts_with("stddev"))
+smallvalid <- validtrain %>% select(-starts_with("kurtosis")) %>%
+  select(-starts_with("skewness")) %>%
+  select(-starts_with("max"))%>%
+  select(-starts_with("min"))%>%
+  select(-starts_with("amplitude"))%>%
+  select(-starts_with("var"))%>%
+  select(-starts_with("avg"))%>%
+  select(-starts_with("stddev"))
+```
+
+
+## Model Selection Strategy
+Given the categorical nature of the outcome the 3 models considered were random forest, rpart and linear discriminant analysis. Random Forest delivered the highest Accuracy and Kappa metrics, but did require substantial processing time - at least an hour. Both rpart
+and lda were much faster but far less accurate. The rf model was validated on the validation subset to confirm performance, and then used with the test data. Note that these models exclude the first 7 variables which were used for sample identification.
+
+```{r models, cross validatin and confusion matrix}
+mod1  <- train(classe~., data=smalltrain[,8:60], method="rf")
+mod2  <- train(classe~., data=smalltrain[,8:60], method="rpart")
+mod3  <- train(classe~., data=smalltrain[,8:60], method = "lda")
+
+pred1 <- predict(mod1, smallvalid)
+pred2 <- predict(mod2, smallvalid)
+pred3 <- predict(mod3, smallvalid)
+
+confusionMatrix(pred1, smallvalid$classe)
+confusionMatrix(pred2, smallvalid$classe)
+confusionMatrix(pred3, smallvalid$classe)
+
+````
+
+The final predictions provide the missing values for the 20 test cases
+```{r final predictions}
+ predtest <- predict(mod1, smalltest)
+predtest
+```
+
+The last exercise identifies the 20 most important variables in this random forest model:
+```{r variable importance}
+varImp(mod1)
+```
+
+This final plot provides further insight into the dynamics of the top 2 variables and the type of performance in the weight lifting exercise.
+
+
+```{r plot, echo=FALSE}
+qplot(roll_belt, pitch_forearm, color=classe, data=training)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
